@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DuoChat — Private 2-Person Real-time Chat</title>
+  <meta name="description" content="Exclusive, instant, and private two-person locked real-time chat with zero logs and strict peer limits.">
+  <meta name="theme-color" content="#090d16">
+
+  <!-- Modern Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <!-- Core Stylesheet -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="toast-container" aria-live="polite"></div>
+
+  <!-- Custom Dialog Modals -->
+  <dialog id="custom-modal" class="app-dialog">
+    <div class="modal-card">
+      <div id="modal-icon-container" class="modal-icon-badge">
+        <i id="modal-icon" class="fa-solid fa-lock"></i>
+      </div>
+      <h2 id="modal-title" class="modal-title">Notice</h2>
+      <p id="modal-desc" class="modal-desc">Details regarding this action.</p>
+      
+      <div id="modal-actions" class="modal-actions">
+        <button id="modal-cancel-btn" class="btn btn-secondary">Cancel</button>
+        <button id="modal-confirm-btn" class="btn btn-primary">Confirm</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- App Header -->
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="brand-group">
+        <div class="brand-icon">
+          <i class="fa-solid fa-comments"></i>
+        </div>
+        <div class="brand-text">
+          <div class="brand-name-row">
+            <span class="brand-name">DuoChat</span>
+            <span class="badge badge-locked">
+              <i class="fa-solid fa-user-lock"></i>
+              <span>2-Peer Locked</span>
+            </span>
+          </div>
+          <p class="brand-tagline">Strictly 2 participants &bull; Real-time synchronized</p>
+        </div>
+      </div>
+
+      <div class="header-controls">
+        <!-- User identity pill (visible once in room) -->
+        <div id="user-badge" class="user-badge hidden">
+          <span class="status-indicator online"></span>
+          <span id="user-badge-name">You</span>
+        </div>
+
+        <!-- Audio mute/unmute toggle -->
+        <button id="sound-toggle-btn" class="icon-btn" title="Toggle sound alerts" aria-label="Toggle sound alerts">
+          <i id="sound-icon" class="fa-solid fa-volume-high"></i>
+        </button>
+
+        <!-- Theme toggle (Dark / Light) -->
+        <button id="theme-toggle-btn" class="icon-btn" title="Toggle theme" aria-label="Toggle theme">
+          <i id="theme-icon" class="fa-solid fa-sun"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Application Body -->
+  <main class="app-main">
+
+    <!-- VIEW 1: Lobby / Room Creator & Matchmaker -->
+    <section id="lobby-view" class="view-panel active-view">
+      <div class="lobby-card">
+        <div class="lobby-header">
+          <div class="shield-badge">
+            <i class="fa-solid fa-shield-halved"></i>
+          </div>
+          <h1 class="lobby-title">Private 2-Person Chat</h1>
+          <p class="lobby-subtitle">
+            An exclusive, direct communication room for you and exactly one partner. Once two people enter, third-party access is completely locked out.
+          </p>
+        </div>
+
+        <form id="lobby-form" class="lobby-form" onsubmit="return false;">
+          <!-- Display Name -->
+          <div class="form-group">
+            <label for="nickname-input" class="form-label">Your Display Name</label>
+            <div class="input-wrapper">
+              <i class="fa-regular fa-user input-icon"></i>
+              <input 
+                id="nickname-input" 
+                type="text" 
+                maxlength="20" 
+                placeholder="e.g. Alex" 
+                autocomplete="nickname"
+                required
+              >
+            </div>
+          </div>
+
+          <!-- Create Room Action -->
+          <div class="form-action">
+            <button id="create-room-btn" type="button" class="btn btn-primary btn-block btn-lg">
+              <i class="fa-solid fa-plus-circle"></i>
+              <span>Create New Private Room</span>
+            </button>
+          </div>
+
+          <div class="divider">
+            <span>or join existing room</span>
+          </div>
+
+          <!-- Join Room Code -->
+          <div class="form-group">
+            <label for="join-code-input" class="form-label">6-Character Room Code</label>
+            <div class="join-row">
+              <div class="input-wrapper flex-1">
+                <i class="fa-solid fa-key input-icon"></i>
+                <input 
+                  id="join-code-input" 
+                  type="text" 
+                  maxlength="6" 
+                  placeholder="e.g. X7K9PQ" 
+                  class="code-input"
+                  autocomplete="off"
+                  spellcheck="false"
+                >
+              </div>
+              <button id="join-room-btn" type="button" class="btn btn-secondary">
+                <i class="fa-solid fa-arrow-right-to-bracket"></i>
+                <span>Join</span>
+              </button>
+            </div>
+          </div>
+        </form>
+
+        <!-- Security Features Guarantee -->
+        <div class="features-grid">
+          <div class="feature-item">
+            <i class="fa-solid fa-lock text-emerald"></i>
+            <div>
+              <strong>Strict 2-Peer Lock</strong>
+              <p>Rejects 3rd party eavesdroppers automatically</p>
+            </div>
+          </div>
+          <div class="feature-item">
+            <i class="fa-solid fa-bolt text-teal"></i>
+            <div>
+              <strong>Real-time WebSockets</strong>
+              <p>Instant zero-lag typing, receipts & reactions</p>
+            </div>
+          </div>
+          <div class="feature-item">
+            <i class="fa-solid fa-fire text-amber"></i>
+            <div>
+              <strong>Burn On Exit</strong>
+              <p>Purge messages permanently when conversation ends</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 2: Active Chat Room -->
+    <section id="chat-view" class="view-panel hidden-view">
+      <div class="chat-wrapper">
+
+        <!-- Room Meta Subheader -->
+        <div class="room-bar">
+          <div class="room-info">
+            <div class="room-code-group">
+              <span class="label-xs">Room</span>
+              <span id="active-room-code" class="code-pill">------</span>
+              <button id="copy-code-btn" class="action-link" title="Copy Room Code">
+                <i class="fa-regular fa-copy"></i>
+              </button>
+              <button id="copy-link-btn" class="btn btn-xs btn-outline">
+                <i class="fa-solid fa-share-nodes"></i>
+                <span>Copy Invite Link</span>
+              </button>
+            </div>
+
+            <!-- Partner presence indicator -->
+            <div class="partner-meta">
+              <span id="partner-status-dot" class="status-indicator waiting"></span>
+              <span id="partner-status-text" class="partner-status-text">Waiting for partner to join...</span>
+            </div>
+          </div>
+
+          <!-- Room Action Toolbar -->
+          <div class="room-actions">
+            <!-- Export Chat -->
+            <button id="export-chat-btn" class="btn btn-xs btn-secondary" title="Export conversation as .txt">
+              <i class="fa-solid fa-download"></i>
+              <span class="desktop-only">Export</span>
+            </button>
+
+            <!-- Clear Messages -->
+            <button id="clear-chat-btn" class="btn btn-xs btn-danger-outline" title="Clear message history">
+              <i class="fa-regular fa-trash-can"></i>
+              <span class="desktop-only">Clear</span>
+            </button>
+
+            <!-- Leave / Close Room -->
+            <button id="leave-room-btn" class="btn btn-xs btn-secondary" title="Leave room">
+              <i class="fa-solid fa-arrow-right-from-bracket"></i>
+              <span>Leave</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Waiting For Partner Banner (shown when guest hasn't joined) -->
+        <div id="waiting-banner" class="waiting-banner">
+          <div class="waiting-banner-content">
+            <div class="waiting-spinner">
+              <i class="fa-solid fa-hourglass-half"></i>
+            </div>
+            <div>
+              <strong>Your room is ready and waiting for your partner!</strong>
+              <p>Share your room code or copy the direct invite link. No one else can join once they connect.</p>
+            </div>
+          </div>
+          <button id="quick-copy-btn" class="btn btn-sm btn-primary">
+            <i class="fa-regular fa-copy"></i>
+            <span>Copy Link</span>
+          </button>
+        </div>
+
+        <!-- Messages Area -->
+        <div id="messages-container" class="messages-container" role="log" aria-label="Conversation messages">
+          <!-- Dynamically populated messages -->
+        </div>
+
+        <!-- Scroll-to-bottom Floating Pill -->
+        <button id="scroll-bottom-btn" class="scroll-bottom-pill hidden" title="Scroll to bottom">
+          <i class="fa-solid fa-arrow-down"></i>
+          <span id="unread-count-badge" class="unread-pill hidden">1</span>
+        </button>
+
+        <!-- Live Typing Indicator Bar -->
+        <div id="typing-bar" class="typing-bar hidden">
+          <div class="typing-dots">
+            <span class="dot"></span>
+            <span class="dot"></span>
+            <span class="dot"></span>
+          </div>
+          <span id="typing-text">Partner is typing...</span>
+        </div>
+
+        <!-- Message Composer -->
+        <div class="composer-container">
+          <!-- Emoji Quick Bar (collapsible) -->
+          <div id="emoji-quick-bar" class="emoji-quick-bar hidden">
+            <button type="button" class="quick-emoji-btn" data-emoji="👍">👍</button>
+            <button type="button" class="quick-emoji-btn" data-emoji="❤️">❤️</button>
+            <button type="button" class="quick-emoji-btn" data-emoji="😂">😂</button>
+            <button type="button" class="quick-emoji-btn" data-emoji="🔥">🔥</button>
+            <button type="button" class="quick-emoji-btn" data-emoji="🙌">🙌</button>
+            <button type="button" class="quick-emoji-btn" data-emoji="🎉">🎉</button>
+            <button type="button" class="quick-emoji-btn" data-emoji="😊">😊</button>
+            <button type="button" class="quick-emoji-btn" data-emoji="🤔">🤔</button>
+          </div>
+
+          <form id="message-form" class="composer-form">
+            <button type="button" id="emoji-picker-toggle" class="icon-btn-subtle" title="Quick Emojis">
+              <i class="fa-regular fa-face-smile"></i>
+            </button>
+
+            <textarea 
+              id="message-input" 
+              class="composer-input" 
+              placeholder="Type your message... (Enter to send, Shift+Enter for new line)"
+              rows="1"
+              maxlength="4000"
+              autocomplete="off"
+              spellcheck="true"
+            ></textarea>
+
+            <button type="submit" id="send-btn" class="btn-send" title="Send message" aria-label="Send message">
+              <i class="fa-solid fa-paper-plane"></i>
+            </button>
+          </form>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Socket.io Client Script -->
+  <script src="/socket.io/socket.io.js"></script>
+  <!-- Application Client Logic -->
+  <script src="app.js"></script>
+</body>
+</html>

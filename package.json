@@ -1,0 +1,28 @@
+{
+  "name": "duochat-2p",
+  "version": "1.0.0",
+  "description": "Exclusive, secure real-time 2-person chat platform with strict peer locking",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "keywords": [
+    "chat",
+    "realtime",
+    "two-person",
+    "private",
+    "socketio",
+    "webrtc"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.8.4"
+  }
+}
