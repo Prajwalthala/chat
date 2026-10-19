@@ -31,6 +31,9 @@
       <h2 id="modal-title" class="modal-title">Notice</h2>
       <p id="modal-desc" class="modal-desc">Details regarding this action.</p>
       
+      <!-- Custom modal content slot (for Re-login Key inputs and key displays) -->
+      <div id="modal-custom-slot" class="modal-custom-slot hidden"></div>
+
       <div id="modal-actions" class="modal-actions">
         <button id="modal-cancel-btn" class="btn btn-secondary">Cancel</button>
         <button id="modal-confirm-btn" class="btn btn-primary">Confirm</button>
@@ -144,6 +147,33 @@
               </button>
             </div>
           </div>
+
+          <!-- Optional Re-login Key Field -->
+          <div class="relogin-toggle-wrap">
+            <button type="button" id="toggle-relogin-key-btn" class="text-link-btn">
+              <i class="fa-solid fa-key"></i>
+              <span>Rejoining after offline? Enter Re-login Key</span>
+            </button>
+          </div>
+
+          <div id="relogin-key-field" class="form-group hidden">
+            <label for="join-key-input" class="form-label flex-between">
+              <span>Your Re-login Key</span>
+              <span class="text-muted text-xs">For resuming locked rooms</span>
+            </label>
+            <div class="input-wrapper">
+              <i class="fa-solid fa-shield-halved input-icon"></i>
+              <input 
+                id="join-key-input" 
+                type="text" 
+                maxlength="16" 
+                placeholder="e.g. HOST-8A2F or GUEST-7K9P" 
+                class="code-input"
+                autocomplete="off"
+                spellcheck="false"
+              >
+            </div>
+          </div>
         </form>
 
         <!-- Security Features Guarantee -->
@@ -171,11 +201,37 @@
           </div>
         </div>
       </div>
+
+      <!-- Saved / Active Chats Section -->
+      <div id="saved-chats-section" class="saved-chats-card hidden">
+        <div class="saved-chats-header">
+          <div class="saved-chats-title-group">
+            <div class="saved-icon-badge">
+              <i class="fa-solid fa-clock-rotate-left"></i>
+            </div>
+            <div>
+              <h2 class="saved-chats-title">Your Saved Chats</h2>
+              <p class="saved-chats-subtitle">Re-login anytime after getting offline</p>
+            </div>
+          </div>
+          <span id="saved-chats-badge" class="badge badge-teal">0</span>
+        </div>
+
+        <div id="saved-chats-list" class="saved-chats-list">
+          <!-- Dynamically populated from localStorage -->
+        </div>
+      </div>
     </section>
 
     <!-- VIEW 2: Active Chat Room -->
     <section id="chat-view" class="view-panel hidden-view">
       <div class="chat-wrapper">
+
+        <!-- Offline / Reconnection Status Banner -->
+        <div id="connection-banner" class="connection-banner hidden">
+          <i id="connection-banner-icon" class="fa-solid fa-wifi"></i>
+          <span id="connection-banner-text">Connecting...</span>
+        </div>
 
         <!-- Room Meta Subheader -->
         <div class="room-bar">
@@ -189,6 +245,10 @@
               <button id="copy-link-btn" class="btn btn-xs btn-outline">
                 <i class="fa-solid fa-share-nodes"></i>
                 <span>Copy Invite Link</span>
+              </button>
+              <button id="view-relogin-key-btn" class="btn btn-xs btn-outline" title="View your personal Re-login Key">
+                <i class="fa-solid fa-key text-teal"></i>
+                <span class="desktop-only">Re-login Key</span>
               </button>
             </div>
 

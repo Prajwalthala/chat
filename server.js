@@ -3,6 +3,7 @@ const http = require('http');
 const path = require('path');
 const { Server } = require('socket.io');
 const crypto = require('crypto');
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
@@ -18,19 +19,113 @@ const PORT = process.env.PORT || 3000;
 // Serve static frontend assets
 app.use(express.static(path.join(__dirname, 'public')));
 
-// In-memory Room Storage
+// Persistent Room Storage
 // Structure:
 // roomId: {
 //   id: string,
 //   createdAt: number,
 //   participants: {
-//     host: { socketId, sessionToken, name, online, lastSeen },
-//     guest: { socketId, sessionToken, name, online, lastSeen }
+//     host: { socketId, sessionToken, reloginKey, name, online, lastSeen },
+//     guest: { socketId, sessionToken, reloginKey, name, online, lastSeen }
 //   },
 //   messages: Array<{ id, senderSlot, senderName, text, timestamp, reactions, status }>,
 //   typing: { host: false, guest: false }
 // }
 const rooms = new Map();
+
+const DATA_DIR = path.join(__dirname, 'data');
+const ROOMS_FILE = path.join(DATA_DIR, 'rooms.json');
+
+// Load stored rooms from disk to persist across server restarts
+function loadRoomsFromDisk() {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    if (fs.existsSync(ROOMS_FILE)) {
+      const raw = fs.readFileSync(ROOMS_FILE, 'utf8');
+      const data = JSON.parse(raw);
+      if (Array.isArray(data)) {
+        for (const r of data) {
+          if (r && r.id) {
+            // Reset active socket connections and typing on boot
+            if (r.participants) {
+              if (r.participants.host) {
+                r.participants.host.socketId = null;
+                r.participants.host.online = false;
+              }
+              if (r.participants.guest) {
+                r.participants.guest.socketId = null;
+                r.participants.guest.online = false;
+              }
+            }
+            if (r.typing) {
+              r.typing.host = false;
+              r.typing.guest = false;
+            }
+            rooms.set(r.id, r);
+          }
+        }
+        console.log(`[Storage] Restored ${rooms.size} persistent room(s) from disk.`);
+      }
+    }
+  } catch (err) {
+    console.error('[Storage] Error loading rooms from disk:', err.message);
+  }
+}
+
+// Debounced atomic write to disk
+let saveTimer = null;
+function saveRoomsToDisk() {
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    flushRoomsToDiskSync();
+  }, 200);
+}
+
+function flushRoomsToDiskSync() {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    const serializableRooms = Array.from(rooms.values()).map(r => ({
+      id: r.id,
+      createdAt: r.createdAt,
+      participants: {
+        host: r.participants.host ? {
+          ...r.participants.host,
+          socketId: null,
+          online: Boolean(r.participants.host.online)
+        } : null,
+        guest: r.participants.guest ? {
+          ...r.participants.guest,
+          socketId: null,
+          online: Boolean(r.participants.guest.online)
+        } : null
+      },
+      messages: r.messages || [],
+      typing: { host: false, guest: false }
+    }));
+    const tempPath = `${ROOMS_FILE}.tmp`;
+    fs.writeFileSync(tempPath, JSON.stringify(serializableRooms, null, 2), 'utf8');
+    fs.renameSync(tempPath, ROOMS_FILE);
+  } catch (err) {
+    console.error('[Storage] Error saving rooms to disk:', err.message);
+  }
+}
+
+process.on('SIGINT', () => {
+  flushRoomsToDiskSync();
+  process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+  flushRoomsToDiskSync();
+  process.exit(0);
+});
+
+// Initial disk load
+loadRoomsFromDisk();
 
 // Helper: Generate unique 6-character room code
 function generateRoomCode() {
@@ -51,6 +146,17 @@ function generateToken() {
   return crypto.randomBytes(16).toString('hex');
 }
 
+// Helper: Generate human-friendly Re-login Passkey (e.g. HOST-7X2K, GUEST-4M9P)
+function generateReloginKey(role) {
+  const prefix = role === 'host' ? 'HOST' : 'GUEST';
+  const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+  let rand = '';
+  for (let i = 0; i < 4; i++) {
+    rand += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return `${prefix}-${rand}`;
+}
+
 // Helper: Sanitize public room state to send to clients
 function getPublicRoomState(room, clientSlot) {
   if (!room) return null;
@@ -63,9 +169,10 @@ function getPublicRoomState(room, clientSlot) {
     createdAt: room.createdAt,
     myRole: clientSlot,
     myName: me ? me.name : '',
+    myReloginKey: me ? me.reloginKey : '',
     partner: partner ? {
       name: partner.name,
-      online: partner.online,
+      online: Boolean(partner.online),
       lastSeen: partner.lastSeen
     } : null,
     isLocked: Boolean(room.participants.host && room.participants.guest),
@@ -81,6 +188,7 @@ io.on('connection', (socket) => {
   socket.on('create-room', ({ name }) => {
     const roomId = generateRoomCode();
     const sessionToken = generateToken();
+    const reloginKey = generateReloginKey('host');
     const cleanName = (name || '').trim().slice(0, 24) || 'Host';
 
     const newRoom = {
@@ -90,6 +198,7 @@ io.on('connection', (socket) => {
         host: {
           socketId: socket.id,
           sessionToken,
+          reloginKey,
           name: cleanName,
           online: true,
           lastSeen: Date.now()
@@ -105,21 +214,24 @@ io.on('connection', (socket) => {
     boundSlot = 'host';
 
     socket.join(roomId);
+    saveRoomsToDisk();
 
     socket.emit('room-joined', {
       success: true,
       roomId,
       role: 'host',
       sessionToken,
+      reloginKey,
       roomState: getPublicRoomState(newRoom, 'host'),
       messages: newRoom.messages
     });
   });
 
-  // 2. Join an Existing Room (With Strict 2-Peer Enforcement)
-  socket.on('join-room', ({ roomId, name, sessionToken }) => {
+  // 2. Join or Re-login to an Existing Room (With Strict 2-Peer Enforcement)
+  socket.on('join-room', ({ roomId, name, sessionToken, reloginKey }) => {
     const cleanCode = (roomId || '').trim().toUpperCase();
     const cleanName = (name || '').trim().slice(0, 24) || 'Guest';
+    const cleanKey = (reloginKey || '').trim().toUpperCase();
 
     if (!cleanCode || cleanCode.length !== 6) {
       return socket.emit('join-error', { message: 'Invalid room code format. Must be 6 alphanumeric characters.' });
@@ -132,7 +244,7 @@ io.on('connection', (socket) => {
 
     let assignedSlot = null;
 
-    // Check if user has an existing session in this room (reconnection)
+    // Check A: Matching sessionToken (seamless client reconnection)
     if (sessionToken) {
       if (room.participants.host && room.participants.host.sessionToken === sessionToken) {
         assignedSlot = 'host';
@@ -141,29 +253,56 @@ io.on('connection', (socket) => {
       }
     }
 
-    // New participant joining
+    // Check B: Matching reloginKey (manual re-login from any device/browser)
+    if (!assignedSlot && cleanKey) {
+      if (room.participants.host && room.participants.host.reloginKey && room.participants.host.reloginKey.toUpperCase() === cleanKey) {
+        assignedSlot = 'host';
+      } else if (room.participants.guest && room.participants.guest.reloginKey && room.participants.guest.reloginKey.toUpperCase() === cleanKey) {
+        assignedSlot = 'guest';
+      }
+    }
+
+    // Check C: If slot not determined yet, check open seats
     if (!assignedSlot) {
       if (!room.participants.host) {
         assignedSlot = 'host';
       } else if (!room.participants.guest) {
         assignedSlot = 'guest';
       } else {
-        // STRICT 2-PERSON LOCKOUT: Room is strictly occupied by 2 people
+        // STRICT 2-PERSON LOCKOUT: Room is occupied by Host & Guest
+        const hostOnline = Boolean(room.participants.host && room.participants.host.online);
+        const guestOnline = Boolean(room.participants.guest && room.participants.guest.online);
+
+        const offlineParticipants = [];
+        if (!hostOnline && room.participants.host) {
+          offlineParticipants.push({ slot: 'host', name: room.participants.host.name });
+        }
+        if (!guestOnline && room.participants.guest) {
+          offlineParticipants.push({ slot: 'guest', name: room.participants.guest.name });
+        }
+
         return socket.emit('join-error', {
           isFull: true,
-          message: 'This room is locked. Exactly two people are already participating in this private conversation.'
+          canRelogin: offlineParticipants.length > 0,
+          offlineParticipants,
+          message: offlineParticipants.length > 0
+            ? `This private conversation is locked. If you are re-joining as ${offlineParticipants.map(p => p.name).join(' or ')}, please enter your Re-login Key to reclaim your seat.`
+            : 'This room is locked. Both participants are currently active in this conversation.'
         });
       }
     }
 
     // Set or refresh participant record
-    const newToken = sessionToken || generateToken();
     const existing = room.participants[assignedSlot];
+    const userToken = (existing && existing.sessionToken) || sessionToken || generateToken();
+    const userReloginKey = (existing && existing.reloginKey) || generateReloginKey(assignedSlot);
+    const displayName = (existing && existing.name) ? existing.name : (cleanName || (assignedSlot === 'host' ? 'Host' : 'Guest'));
 
     room.participants[assignedSlot] = {
       socketId: socket.id,
-      sessionToken: newToken,
-      name: cleanName || (existing ? existing.name : (assignedSlot === 'host' ? 'Host' : 'Guest')),
+      sessionToken: userToken,
+      reloginKey: userReloginKey,
+      name: displayName,
       online: true,
       lastSeen: Date.now()
     };
@@ -172,12 +311,15 @@ io.on('connection', (socket) => {
     boundSlot = assignedSlot;
     socket.join(cleanCode);
 
-    // Send full state to joining user
+    saveRoomsToDisk();
+
+    // Send full state to joining/reconnecting user
     socket.emit('room-joined', {
       success: true,
       roomId: cleanCode,
       role: assignedSlot,
-      sessionToken: newToken,
+      sessionToken: userToken,
+      reloginKey: userReloginKey,
       roomState: getPublicRoomState(room, assignedSlot),
       messages: room.messages
     });
@@ -225,6 +367,8 @@ io.on('connection', (socket) => {
     if (room.typing) room.typing[boundSlot] = false;
     socket.to(boundRoomId).emit('partner-typing', { isTyping: false });
 
+    saveRoomsToDisk();
+
     // Send to partner
     socket.to(boundRoomId).emit('new-message', message);
 
@@ -262,6 +406,7 @@ io.on('connection', (socket) => {
     });
 
     if (updated) {
+      saveRoomsToDisk();
       socket.to(boundRoomId).emit('messages-read', { messageIds });
     }
   });
@@ -291,6 +436,8 @@ io.on('connection', (socket) => {
       msg.reactions[emoji].push(boundSlot);
     }
 
+    saveRoomsToDisk();
+
     io.to(boundRoomId).emit('reaction-updated', {
       messageId,
       reactions: msg.reactions
@@ -310,6 +457,8 @@ io.on('connection', (socket) => {
       room.participants[boundSlot].name = clean;
     }
 
+    saveRoomsToDisk();
+
     socket.to(boundRoomId).emit('partner-updated', {
       partner: {
         name: clean,
@@ -327,6 +476,7 @@ io.on('connection', (socket) => {
     if (!room) return;
 
     room.messages = [];
+    saveRoomsToDisk();
     io.to(boundRoomId).emit('chat-cleared');
   });
 
@@ -337,7 +487,45 @@ io.on('connection', (socket) => {
     boundSlot = null;
   });
 
-  // 10. Disconnect Handling
+  // 10. Check Room Status (for Lobby Saved Chats list updates)
+  socket.on('get-room-status', ({ roomId, sessionToken, reloginKey }, callback) => {
+    if (typeof callback !== 'function') return;
+    const cleanCode = (roomId || '').trim().toUpperCase();
+    const room = rooms.get(cleanCode);
+    if (!room) {
+      return callback({ exists: false, roomId: cleanCode });
+    }
+
+    let role = null;
+    if (sessionToken) {
+      if (room.participants.host && room.participants.host.sessionToken === sessionToken) role = 'host';
+      else if (room.participants.guest && room.participants.guest.sessionToken === sessionToken) role = 'guest';
+    }
+    if (!role && reloginKey) {
+      const cleanKey = reloginKey.trim().toUpperCase();
+      if (room.participants.host && room.participants.host.reloginKey && room.participants.host.reloginKey.toUpperCase() === cleanKey) role = 'host';
+      else if (room.participants.guest && room.participants.guest.reloginKey && room.participants.guest.reloginKey.toUpperCase() === cleanKey) role = 'guest';
+    }
+
+    const partnerSlot = role === 'host' ? 'guest' : 'host';
+    const partner = role ? room.participants[partnerSlot] : null;
+
+    callback({
+      exists: true,
+      roomId: cleanCode,
+      isMember: Boolean(role),
+      role,
+      partner: partner ? {
+        name: partner.name,
+        online: Boolean(partner.online),
+        lastSeen: partner.lastSeen
+      } : null,
+      messageCount: room.messages.length,
+      lastMessage: room.messages.length > 0 ? room.messages[room.messages.length - 1] : null
+    });
+  });
+
+  // 11. Disconnect Handling
   socket.on('disconnect', () => {
     if (boundRoomId && boundSlot) {
       handleUserLeaving(socket, boundRoomId, boundSlot, false);
@@ -358,6 +546,7 @@ function handleUserLeaving(socket, roomId, slot, destroyRoom) {
       message: 'The room was permanently terminated and purged from memory.'
     });
     rooms.delete(roomId);
+    saveRoomsToDisk();
     return;
   }
 
@@ -377,25 +566,32 @@ function handleUserLeaving(socket, roomId, slot, destroyRoom) {
     isLocked: Boolean(room.participants.host && room.participants.guest)
   });
 
-  // If both participants are offline for 1 hour, clean up room
-  const hostOnline = room.participants.host && room.participants.host.online;
-  const guestOnline = room.participants.guest && room.participants.guest.online;
-
-  if (!hostOnline && !guestOnline) {
-    setTimeout(() => {
-      const current = rooms.get(roomId);
-      if (current && (!current.participants.host || !current.participants.host.online) &&
-          (!current.participants.guest || !current.participants.guest.online)) {
-        rooms.delete(roomId);
-      }
-    }, 60 * 60 * 1000);
-  }
+  saveRoomsToDisk();
 }
+
+// Stale rooms cleanup (retains active & offline conversations for 30 days)
+setInterval(() => {
+  const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  let changed = false;
+  for (const [id, room] of rooms.entries()) {
+    const hostLast = (room.participants.host && room.participants.host.lastSeen) || room.createdAt;
+    const guestLast = (room.participants.guest && room.participants.guest.lastSeen) || room.createdAt;
+    const lastActive = Math.max(hostLast, guestLast);
+    const hostOnline = room.participants.host && room.participants.host.online;
+    const guestOnline = room.participants.guest && room.participants.guest.online;
+    if (!hostOnline && !guestOnline && (now - lastActive > THIRTY_DAYS)) {
+      rooms.delete(id);
+      changed = true;
+    }
+  }
+  if (changed) saveRoomsToDisk();
+}, 24 * 60 * 60 * 1000);
 
 server.listen(PORT, () => {
   console.log(`\n==================================================`);
   console.log(`  DuoChat (2-Person Private Chat) Server Online!`);
   console.log(`  URL: http://localhost:${PORT}`);
-  console.log(`  Active Rooms: 0`);
+  console.log(`  Active Rooms: ${rooms.size}`);
   console.log(`==================================================\n`);
 });

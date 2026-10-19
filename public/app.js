@@ -14,6 +14,7 @@
     role: null, // 'host' | 'guest'
     name: 'User',
     sessionToken: null,
+    reloginKey: null,
     partner: null,
     messages: [],
     soundEnabled: true,
@@ -38,6 +39,19 @@
     createRoomBtn: document.getElementById('create-room-btn'),
     joinCodeInput: document.getElementById('join-code-input'),
     joinRoomBtn: document.getElementById('join-room-btn'),
+
+    toggleReloginKeyBtn: document.getElementById('toggle-relogin-key-btn'),
+    reloginKeyField: document.getElementById('relogin-key-field'),
+    joinKeyInput: document.getElementById('join-key-input'),
+
+    savedChatsSection: document.getElementById('saved-chats-section'),
+    savedChatsBadge: document.getElementById('saved-chats-badge'),
+    savedChatsList: document.getElementById('saved-chats-list'),
+
+    connectionBanner: document.getElementById('connection-banner'),
+    connectionBannerIcon: document.getElementById('connection-banner-icon'),
+    connectionBannerText: document.getElementById('connection-banner-text'),
+    viewReloginKeyBtn: document.getElementById('view-relogin-key-btn'),
 
     activeRoomCode: document.getElementById('active-room-code'),
     copyCodeBtn: document.getElementById('copy-code-btn'),
@@ -68,6 +82,7 @@
     modalIconContainer: document.getElementById('modal-icon-container'),
     modalTitle: document.getElementById('modal-title'),
     modalDesc: document.getElementById('modal-desc'),
+    modalCustomSlot: document.getElementById('modal-custom-slot'),
     modalActions: document.getElementById('modal-actions'),
     modalCancelBtn: document.getElementById('modal-cancel-btn'),
     modalConfirmBtn: document.getElementById('modal-confirm-btn'),
@@ -163,11 +178,21 @@
   }
 
   // 4. Modal Dialog Controller
-  function showModal({ title, desc, icon = 'fa-lock', iconType = 'danger', confirmText = 'OK', cancelText = 'Cancel', showCancel = true, onConfirm }) {
+  function showModal({
+    title,
+    desc,
+    icon = 'fa-lock',
+    iconType = 'danger',
+    confirmText = 'OK',
+    cancelText = 'Cancel',
+    showCancel = true,
+    customContent = null,
+    onConfirm,
+    onCancel
+  }) {
     elements.modalTitle.textContent = title;
     elements.modalDesc.textContent = desc;
     elements.modalIcon.className = `fa-solid ${icon}`;
-
     elements.modalIconContainer.className = `modal-icon-badge ${iconType}`;
 
     elements.modalConfirmBtn.textContent = confirmText;
@@ -179,16 +204,39 @@
       elements.modalCancelBtn.classList.add('hidden');
     }
 
+    if (customContent) {
+      elements.modalCustomSlot.innerHTML = '';
+      if (typeof customContent === 'string') {
+        elements.modalCustomSlot.innerHTML = customContent;
+      } else {
+        elements.modalCustomSlot.appendChild(customContent);
+      }
+      elements.modalCustomSlot.classList.remove('hidden');
+    } else {
+      elements.modalCustomSlot.innerHTML = '';
+      elements.modalCustomSlot.classList.add('hidden');
+    }
+
     const cleanup = () => {
       elements.modal.close();
+      elements.modalCustomSlot.innerHTML = '';
+      elements.modalCustomSlot.classList.add('hidden');
       elements.modalConfirmBtn.onclick = null;
       elements.modalCancelBtn.onclick = null;
     };
 
-    elements.modalCancelBtn.onclick = cleanup;
-    elements.modalConfirmBtn.onclick = () => {
+    elements.modalCancelBtn.onclick = () => {
       cleanup();
-      if (typeof onConfirm === 'function') onConfirm();
+      if (typeof onCancel === 'function') onCancel();
+    };
+
+    elements.modalConfirmBtn.onclick = () => {
+      if (typeof onConfirm === 'function') {
+        const result = onConfirm();
+        if (result !== false) cleanup();
+      } else {
+        cleanup();
+      }
     };
 
     if (typeof elements.modal.showModal === 'function') {
@@ -328,7 +376,225 @@
     }
   }
 
-  // 10. Room Creation & Joining Handlers
+  // 10. Saved Chats & Persistent Local Storage
+  const STORAGE_KEY = 'duochat_saved_rooms';
+
+  function getSavedRooms() {
+    try {
+      const data = localStorage.getItem(STORAGE_KEY);
+      return data ? JSON.parse(data) : {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function saveRoomToStorage(roomData) {
+    try {
+      const rooms = getSavedRooms();
+      rooms[roomData.roomId] = {
+        roomId: roomData.roomId,
+        role: roomData.role,
+        sessionToken: roomData.sessionToken,
+        reloginKey: roomData.reloginKey,
+        name: roomData.name,
+        partnerName: roomData.partnerName || 'Waiting for partner...',
+        partnerOnline: Boolean(roomData.partnerOnline),
+        lastMessage: roomData.lastMessage || 'Connected to room',
+        lastUpdated: Date.now()
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(rooms));
+      renderSavedRoomsList();
+    } catch (e) {
+      console.error('Error saving room to storage', e);
+    }
+  }
+
+  function updateRoomInStorage(roomId, partialData) {
+    try {
+      if (!roomId) return;
+      const rooms = getSavedRooms();
+      if (rooms[roomId]) {
+        rooms[roomId] = {
+          ...rooms[roomId],
+          ...partialData,
+          lastUpdated: Date.now()
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(rooms));
+        renderSavedRoomsList();
+      }
+    } catch (e) {}
+  }
+
+  function removeRoomFromStorage(roomId) {
+    try {
+      if (!roomId) return;
+      const rooms = getSavedRooms();
+      delete rooms[roomId];
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(rooms));
+      renderSavedRoomsList();
+    } catch (e) {}
+  }
+
+  function formatTimeAgo(timestamp) {
+    if (!timestamp) return 'Recently';
+    const diff = Math.floor((Date.now() - timestamp) / 1000);
+    if (diff < 60) return 'Just now';
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    return `${Math.floor(diff / 86400)}d ago`;
+  }
+
+  function renderSavedRoomsList() {
+    if (!elements.savedChatsSection || !elements.savedChatsList) return;
+    const roomsObj = getSavedRooms();
+    const roomsList = Object.values(roomsObj).sort((a, b) => (b.lastUpdated || 0) - (a.lastUpdated || 0));
+
+    if (roomsList.length === 0) {
+      elements.savedChatsSection.classList.add('hidden');
+      return;
+    }
+
+    elements.savedChatsSection.classList.remove('hidden');
+    if (elements.savedChatsBadge) elements.savedChatsBadge.textContent = roomsList.length;
+    elements.savedChatsList.innerHTML = '';
+
+    roomsList.forEach(room => {
+      const item = document.createElement('div');
+      item.className = 'saved-chat-item';
+      item.id = `saved-card-${room.roomId}`;
+
+      const isHost = room.role === 'host';
+      const roleClass = isHost ? 'host' : 'guest';
+      const roleLabel = isHost ? 'Host' : 'Guest';
+      const partnerStatus = room.partnerOnline ? 'Online' : 'Offline';
+      const partnerDotClass = room.partnerOnline ? 'online' : 'offline';
+
+      item.innerHTML = `
+        <div class="saved-chat-top">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="saved-room-pill">${escapeHtml(room.roomId)}</span>
+            <span class="saved-role-badge ${roleClass}">${roleLabel}</span>
+          </div>
+          <span class="text-xs text-muted" id="time-ago-${room.roomId}">${formatTimeAgo(room.lastUpdated)}</span>
+        </div>
+
+        <div class="saved-chat-partner-row">
+          <span class="status-indicator ${partnerDotClass}" id="partner-dot-${room.roomId}"></span>
+          <span style="font-weight:600;font-size:0.88rem;" id="partner-label-${room.roomId}">
+            ${escapeHtml(room.partnerName || 'Waiting for partner...')}
+          </span>
+          <span class="text-xs text-muted" id="partner-status-tag-${room.roomId}">(${partnerStatus})</span>
+        </div>
+
+        <div class="saved-chat-meta-row">
+          <span class="saved-chat-snippet" id="snippet-${room.roomId}" title="${escapeHtml(room.lastMessage || '')}">
+            ${escapeHtml(room.lastMessage || 'No recent messages')}
+          </span>
+          <span class="saved-chat-key-badge" data-key="${escapeHtml(room.reloginKey || '')}" title="Click to copy your Re-login Key">
+            <i class="fa-solid fa-key text-teal"></i>
+            <span>${escapeHtml(room.reloginKey || 'KEY')}</span>
+          </span>
+        </div>
+
+        <div class="saved-chat-actions">
+          <button type="button" class="btn btn-primary btn-sm resume-btn" data-room="${room.roomId}">
+            <i class="fa-solid fa-arrow-right-to-bracket"></i>
+            <span>Re-login & Open</span>
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm btn-remove remove-btn" data-room="${room.roomId}" title="Remove from this device">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+      `;
+
+      elements.savedChatsList.appendChild(item);
+    });
+  }
+
+  function refreshSavedRoomsStatus() {
+    const roomsObj = getSavedRooms();
+    Object.values(roomsObj).forEach(r => {
+      socket.emit('get-room-status', {
+        roomId: r.roomId,
+        sessionToken: r.sessionToken,
+        reloginKey: r.reloginKey
+      }, (res) => {
+        if (!res || !res.exists) {
+          const statusTag = document.getElementById(`partner-status-tag-${r.roomId}`);
+          if (statusTag) statusTag.textContent = '(Room Expired)';
+          return;
+        }
+
+        if (res.partner) {
+          const dot = document.getElementById(`partner-dot-${r.roomId}`);
+          const label = document.getElementById(`partner-label-${r.roomId}`);
+          const tag = document.getElementById(`partner-status-tag-${r.roomId}`);
+
+          if (dot) dot.className = `status-indicator ${res.partner.online ? 'online' : 'offline'}`;
+          if (label && res.partner.name) label.textContent = res.partner.name;
+          if (tag) tag.textContent = res.partner.online ? '(Online)' : '(Offline)';
+
+          updateRoomInStorage(r.roomId, {
+            partnerName: res.partner.name,
+            partnerOnline: res.partner.online,
+            lastMessage: res.lastMessage ? res.lastMessage.text : r.lastMessage
+          });
+        }
+      });
+    });
+  }
+
+  // Saved Chats interaction delegation
+  if (elements.savedChatsList) {
+    elements.savedChatsList.addEventListener('click', (e) => {
+      const resumeBtn = e.target.closest('.resume-btn');
+      if (resumeBtn) {
+        const roomId = resumeBtn.getAttribute('data-room');
+        const saved = getSavedRooms()[roomId];
+        if (saved) {
+          state.name = saved.name || state.name || 'User';
+          elements.nicknameInput.value = state.name;
+          showToast(`Re-logging into room ${roomId}...`, 'info');
+          socket.emit('join-room', {
+            roomId: saved.roomId,
+            name: saved.name,
+            sessionToken: saved.sessionToken,
+            reloginKey: saved.reloginKey
+          });
+        }
+        return;
+      }
+
+      const removeBtn = e.target.closest('.remove-btn');
+      if (removeBtn) {
+        const roomId = removeBtn.getAttribute('data-room');
+        removeRoomFromStorage(roomId);
+        showToast(`Removed room ${roomId} from this device`, 'info');
+        return;
+      }
+
+      const keyBadge = e.target.closest('.saved-chat-key-badge');
+      if (keyBadge) {
+        const key = keyBadge.getAttribute('data-key');
+        if (key) {
+          copyToClipboard(key, `Re-login Key "${key}" copied to clipboard!`);
+        }
+        return;
+      }
+    });
+  }
+
+  // Toggle optional Re-login Key Input
+  if (elements.toggleReloginKeyBtn) {
+    elements.toggleReloginKeyBtn.addEventListener('click', () => {
+      elements.reloginKeyField.classList.toggle('hidden');
+      if (!elements.reloginKeyField.classList.contains('hidden')) {
+        elements.joinKeyInput.focus();
+      }
+    });
+  }
+
+  // 11. Room Creation & Joining Handlers
   elements.createRoomBtn.addEventListener('click', () => {
     const name = elements.nicknameInput.value.trim() || 'Host';
     state.name = name;
@@ -340,10 +606,16 @@
   elements.joinCodeInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') handleJoinRequest();
   });
+  if (elements.joinKeyInput) {
+    elements.joinKeyInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') handleJoinRequest();
+    });
+  }
 
   function handleJoinRequest() {
     const code = elements.joinCodeInput.value.trim().toUpperCase();
     const name = elements.nicknameInput.value.trim() || 'Guest';
+    const manualKey = elements.joinKeyInput ? elements.joinKeyInput.value.trim().toUpperCase() : '';
 
     if (!code || code.length !== 6) {
       showToast('Please enter a valid 6-character room code', 'warning');
@@ -354,51 +626,109 @@
     state.name = name;
     localStorage.setItem('duochat_name', name);
 
-    // Retrieve previous session token if returning to this room
-    const session = getStoredSession(code);
+    // Retrieve previous session token / reloginKey if returning to this room
+    const saved = getSavedRooms()[code];
+    const sessionToken = saved ? saved.sessionToken : null;
+    const reloginKey = manualKey || (saved ? saved.reloginKey : null);
+
     socket.emit('join-room', {
       roomId: code,
       name,
-      sessionToken: session ? session.token : null
+      sessionToken,
+      reloginKey
     });
   }
 
-  // Session persistence helpers
-  function saveSession(roomId, role, token, name) {
-    try {
-      const data = { roomId, role, token, name };
-      sessionStorage.setItem(`duochat_session_${roomId}`, JSON.stringify(data));
-      sessionStorage.setItem('duochat_last_room', roomId);
-    } catch (e) {}
-  }
+  // Connection & Offline Banner Helpers
+  function showConnectionBanner(type, message) {
+    if (!elements.connectionBanner) return;
+    elements.connectionBanner.className = `connection-banner ${type}`;
+    elements.connectionBannerText.textContent = message;
+    elements.connectionBanner.classList.remove('hidden');
 
-  function getStoredSession(roomId) {
-    try {
-      const str = sessionStorage.getItem(`duochat_session_${roomId}`);
-      return str ? JSON.parse(str) : null;
-    } catch (e) {
-      return null;
+    if (type === 'online') {
+      setTimeout(() => {
+        elements.connectionBanner.classList.add('hidden');
+      }, 2500);
     }
   }
 
-  function clearStoredSession(roomId) {
-    try {
-      sessionStorage.removeItem(`duochat_session_${roomId}`);
-      sessionStorage.removeItem('duochat_last_room');
-    } catch (e) {}
+  function hideConnectionBanner() {
+    if (elements.connectionBanner) {
+      elements.connectionBanner.classList.add('hidden');
+    }
   }
 
-  // 11. Socket.IO Event Listeners
-  socket.on('room-joined', ({ success, roomId, role, sessionToken, roomState, messages }) => {
+  // 12. Socket.IO Event Listeners
+  socket.on('connect', () => {
+    if (state.roomId && (state.sessionToken || state.reloginKey)) {
+      showConnectionBanner('online', '✓ Reconnected! Resuming chat...');
+      socket.emit('join-room', {
+        roomId: state.roomId,
+        name: state.name,
+        sessionToken: state.sessionToken,
+        reloginKey: state.reloginKey
+      });
+    } else {
+      hideConnectionBanner();
+    }
+    refreshSavedRoomsStatus();
+  });
+
+  socket.on('disconnect', () => {
+    if (state.roomId) {
+      showConnectionBanner('offline', '⚠️ Connection lost. Auto-reconnecting as soon as network is back...');
+    }
+  });
+
+  window.addEventListener('online', () => {
+    showToast('Internet connection restored', 'success');
+    if (state.roomId) {
+      showConnectionBanner('online', 'Network online! Re-syncing chat...');
+      if (!socket.connected) {
+        socket.connect();
+      } else {
+        socket.emit('join-room', {
+          roomId: state.roomId,
+          name: state.name,
+          sessionToken: state.sessionToken,
+          reloginKey: state.reloginKey
+        });
+      }
+    }
+    refreshSavedRoomsStatus();
+  });
+
+  window.addEventListener('offline', () => {
+    showToast('You are currently offline', 'warning');
+    if (state.roomId) {
+      showConnectionBanner('offline', '⚠️ You are currently offline. Changes will sync when reconnected.');
+    }
+  });
+
+  socket.on('room-joined', ({ success, roomId, role, sessionToken, reloginKey, roomState, messages }) => {
     if (!success) return;
 
     state.roomId = roomId;
     state.role = role;
     state.sessionToken = sessionToken;
+    state.reloginKey = reloginKey;
     state.messages = messages || [];
     state.partner = roomState.partner;
 
-    saveSession(roomId, role, sessionToken, state.name);
+    saveRoomToStorage({
+      roomId,
+      role,
+      sessionToken,
+      reloginKey,
+      name: state.name,
+      partnerName: roomState.partner?.name,
+      partnerOnline: roomState.partner?.online,
+      lastMessage: messages.length > 0 ? messages[messages.length - 1].text : 'Joined conversation',
+      lastUpdated: Date.now()
+    });
+
+    hideConnectionBanner();
 
     // Update Header and UI
     elements.activeRoomCode.textContent = roomId;
@@ -420,12 +750,66 @@
     showToast(`Connected to room ${roomId}`, 'success');
   });
 
-  socket.on('join-error', ({ message, isFull }) => {
+  socket.on('join-error', ({ message, isFull, canRelogin, offlineParticipants }) => {
+    if (isFull && canRelogin) {
+      // Re-login prompt modal
+      const content = document.createElement('div');
+      content.className = 'modal-input-group';
+      const seatNames = (offlineParticipants || []).map(p => `${p.name} (${p.slot === 'host' ? 'Host' : 'Guest'})`).join(' or ');
+      content.innerHTML = `
+        <label for="modal-relogin-key-input" class="form-label">Enter your Re-login Key</label>
+        <div class="input-wrapper">
+          <i class="fa-solid fa-key input-icon"></i>
+          <input 
+            type="text" 
+            id="modal-relogin-key-input" 
+            class="code-input" 
+            placeholder="e.g. HOST-8A2F or GUEST-7K9P" 
+            autocomplete="off"
+            spellcheck="false"
+            maxlength="16"
+          >
+        </div>
+      `;
+
+      showModal({
+        title: 'Re-login to Room',
+        desc: `This 2-person room is locked, but offline seat(s) are available for ${seatNames}. Enter your Re-login Key to reclaim your seat:`,
+        icon: 'fa-shield-halved',
+        iconType: 'info',
+        confirmText: 'Re-login & Enter',
+        cancelText: 'Cancel',
+        showCancel: true,
+        customContent: content,
+        onConfirm: () => {
+          const keyInput = document.getElementById('modal-relogin-key-input');
+          const keyVal = (keyInput ? keyInput.value : '').trim().toUpperCase();
+          if (!keyVal) {
+            showToast('Please enter your Re-login Key', 'warning');
+            return false;
+          }
+          const code = elements.joinCodeInput.value.trim().toUpperCase() || state.roomId;
+          socket.emit('join-room', {
+            roomId: code,
+            name: state.name || 'User',
+            reloginKey: keyVal
+          });
+          return true;
+        }
+      });
+
+      setTimeout(() => {
+        const inp = document.getElementById('modal-relogin-key-input');
+        if (inp) inp.focus();
+      }, 100);
+      return;
+    }
+
     if (isFull) {
       // STRICT 2-PEER LOCK ENFORCEMENT MODAL
       showModal({
         title: 'Room Is Locked (2/2)',
-        desc: 'This private conversation is strictly limited to 2 participants and is already full. Entry has been blocked.',
+        desc: 'This private conversation is strictly limited to 2 participants and both are currently online and chatting. Third-party entry is strictly blocked.',
         icon: 'fa-user-lock',
         iconType: 'danger',
         confirmText: 'Understood',
@@ -445,6 +829,13 @@
     state.partner = partner;
     updatePartnerUI(partner, isLocked);
 
+    if (state.roomId && partner) {
+      updateRoomInStorage(state.roomId, {
+        partnerName: partner.name,
+        partnerOnline: Boolean(partner.online)
+      });
+    }
+
     if (partner && partner.online && !wasOnline) {
       playChime('joined');
       showToast(`${partner.name || 'Partner'} has connected!`, 'info');
@@ -457,6 +848,13 @@
   socket.on('new-message', (message) => {
     state.messages.push(message);
     appendMessageDOM(message);
+
+    if (state.roomId) {
+      updateRoomInStorage(state.roomId, {
+        lastMessage: `${message.senderName}: ${message.text}`,
+        lastUpdated: Date.now()
+      });
+    }
 
     playChime('received');
 
@@ -719,6 +1117,12 @@
         state.messages.push(res.message);
         appendMessageDOM(res.message);
         playChime('sent');
+        if (state.roomId) {
+          updateRoomInStorage(state.roomId, {
+            lastMessage: `You: ${res.message.text}`,
+            lastUpdated: Date.now()
+          });
+        }
       }
     });
   }
@@ -856,20 +1260,58 @@
     });
   });
 
-  // Leave / Burn Room Modal
+  // 17. View Re-login Key Button Handler
+  if (elements.viewReloginKeyBtn) {
+    elements.viewReloginKeyBtn.addEventListener('click', () => {
+      if (!state.reloginKey) {
+        showToast('No Re-login Key available', 'warning');
+        return;
+      }
+
+      const content = document.createElement('div');
+      content.className = 'key-display-card';
+      content.innerHTML = `
+        <span class="key-large-pill" id="modal-key-text">${escapeHtml(state.reloginKey)}</span>
+        <button type="button" id="modal-copy-key-btn" class="btn btn-sm btn-primary">
+          <i class="fa-regular fa-copy"></i>
+          <span>Copy Re-login Key</span>
+        </button>
+        <p class="key-hint">
+          Keep this key safe! You can use it to re-login into Room <strong>${escapeHtml(state.roomId)}</strong> as ${state.role === 'host' ? 'Host' : 'Guest'} anytime after going offline or from another device.
+        </p>
+      `;
+
+      const copyBtn = content.querySelector('#modal-copy-key-btn');
+      copyBtn.addEventListener('click', () => {
+        copyToClipboard(state.reloginKey, 'Re-login Key copied to clipboard!');
+      });
+
+      showModal({
+        title: 'Your Re-login Key',
+        desc: `This secret passkey authenticates your seat in this private 2-person room.`,
+        icon: 'fa-key',
+        iconType: 'info',
+        confirmText: 'Done',
+        showCancel: false,
+        customContent: content
+      });
+    });
+  }
+
+  // 18. Leave / Burn Room Modal
   elements.leaveRoomBtn.addEventListener('click', () => {
     showModal({
       title: 'Leave Conversation',
-      desc: 'Would you like to simply leave (you can rejoin with room code), or burn and destroy this room permanently?',
+      desc: 'Would you like to simply leave (you can re-login anytime from Saved Chats), or burn and destroy this room permanently?',
       icon: 'fa-arrow-right-from-bracket',
       iconType: 'warning',
       confirmText: 'Leave Room',
       cancelText: 'Burn & Destroy',
       showCancel: true,
       onConfirm: () => {
-        // Simple leave
+        // Simple leave (keeps saved in localStorage)
         socket.emit('leave-room', { destroyRoom: false });
-        exitToLobby();
+        exitToLobby(false);
       }
     });
 
@@ -879,7 +1321,7 @@
       elements.modal.close();
       showModal({
         title: 'Burn & Destroy Room?',
-        desc: 'This will permanently wipe all conversation messages from memory and kick all participants out immediately.',
+        desc: 'This will permanently wipe all conversation messages and delete the room for both participants.',
         icon: 'fa-fire',
         iconType: 'danger',
         confirmText: 'Burn Permanently',
@@ -887,16 +1329,19 @@
         showCancel: true,
         onConfirm: () => {
           socket.emit('leave-room', { destroyRoom: true });
-          exitToLobby();
+          exitToLobby(true);
         }
       });
     };
   });
 
-  function exitToLobby() {
-    clearStoredSession(state.roomId);
+  function exitToLobby(isBurned = false) {
+    if (isBurned && state.roomId) {
+      removeRoomFromStorage(state.roomId);
+    }
     state.roomId = null;
     state.role = null;
+    state.reloginKey = null;
     state.partner = null;
     state.messages = [];
     state.unreadCount = 0;
@@ -907,12 +1352,16 @@
     window.history.replaceState({}, '', url);
 
     showView('lobby');
-    showToast('You left the room', 'info');
+    renderSavedRoomsList();
+    refreshSavedRoomsStatus();
+    showToast(isBurned ? 'Room burned permanently' : 'You left the room. You can re-login anytime from Saved Chats.', 'info');
   }
 
-  // 17. Startup Initialization
+  // 19. Startup Initialization
   window.addEventListener('DOMContentLoaded', () => {
     initPreferences();
+    renderSavedRoomsList();
+    refreshSavedRoomsStatus();
 
     // Check URL parameters for room invitation
     const urlParams = new URLSearchParams(window.location.search);
@@ -923,14 +1372,15 @@
       elements.joinCodeInput.value = cleanCode;
 
       // Check if we have an existing session for this room
-      const savedSession = getStoredSession(cleanCode);
+      const savedSession = getSavedRooms()[cleanCode];
       if (savedSession) {
         state.name = savedSession.name || 'User';
         elements.nicknameInput.value = state.name;
         socket.emit('join-room', {
           roomId: cleanCode,
           name: state.name,
-          sessionToken: savedSession.token
+          sessionToken: savedSession.sessionToken,
+          reloginKey: savedSession.reloginKey
         });
       } else {
         showToast(`Invite code ${cleanCode} entered. Click Join to enter.`, 'info');

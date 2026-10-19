@@ -1,0 +1,343 @@
+[
+  {
+    "id": "Q2WY65",
+    "createdAt": 1792417388444,
+    "participants": {
+      "host": {
+        "socketId": null,
+        "sessionToken": "cf442a8248289d7ea00c02fad0f6d559",
+        "reloginKey": "HOST-CJTE",
+        "name": "sejal",
+        "online": false,
+        "lastSeen": 1792417388444
+      },
+      "guest": {
+        "socketId": null,
+        "sessionToken": "c40dd8ff14dcf4fb1555d0ad4dca8fd7",
+        "reloginKey": "GUEST-63NL",
+        "name": "fdf",
+        "online": false,
+        "lastSeen": 1792417422302
+      }
+    },
+    "messages": [
+      {
+        "id": "5f6bd6c6-abd5-4765-906d-1b061bc99104",
+        "senderSlot": "guest",
+        "senderName": "fdf",
+        "text": "hi baby",
+        "timestamp": 1792417405347,
+        "replyToId": null,
+        "reactions": {},
+        "status": "read"
+      },
+      {
+        "id": "ed43829e-c59a-477b-ae0a-be81cc7fe72a",
+        "senderSlot": "host",
+        "senderName": "sejal",
+        "text": "i baby",
+        "timestamp": 1792417410628,
+        "replyToId": null,
+        "reactions": {},
+        "status": "read"
+      },
+      {
+        "id": "6b0b80d6-4f3a-4830-aabc-fbc480019505",
+        "senderSlot": "host",
+        "senderName": "sejal",
+        "text": "how are you",
+        "timestamp": 1792417413794,
+        "replyToId": null,
+        "reactions": {},
+        "status": "read"
+      },
+      {
+        "id": "b1a0af56-ba06-43f0-b662-fc64ee7f167e",
+        "senderSlot": "host",
+        "senderName": "sejal",
+        "text": "i am fine",
+        "timestamp": 1792417416577,
+        "replyToId": null,
+        "reactions": {},
+        "status": "read"
+      }
+    ],
+    "typing": {
+      "host": false,
+      "guest": false
+    }
+  },
+  {
+    "id": "MCVHEM",
+    "createdAt": 1792417525928,
+    "participants": {
+      "host": {
+        "socketId": null,
+        "sessionToken": "f0ff996d4170fd5144b0d3c6d10dd866",
+        "reloginKey": "HOST-KWZ6",
+        "name": "fdf",
+        "online": false,
+        "lastSeen": 1792417525928
+      },
+      "guest": {
+        "socketId": null,
+        "sessionToken": "ec908dae84cefaeb8a6e05b04f955516",
+        "reloginKey": "GUEST-RJK5",
+        "name": "fdfwdw",
+        "online": false,
+        "lastSeen": 1792417568875
+      }
+    },
+    "messages": [
+      {
+        "id": "7f9ac908-86d7-4c0d-a4a1-15a389b1f709",
+        "senderSlot": "guest",
+        "senderName": "fdfwdw",
+        "text": "hi babay",
+        "timestamp": 1792417538428,
+        "replyToId": null,
+        "reactions": {},
+        "status": "read"
+      },
+      {
+        "id": "0651783c-efa4-4e54-a682-6a6367a82e17",
+        "senderSlot": "host",
+        "senderName": "fdf",
+        "text": "hi bay",
+        "timestamp": 1792417544178,
+        "replyToId": null,
+        "reactions": {},
+        "status": "read"
+      }
+    ],
+    "typing": {
+      "host": false,
+      "guest": false
+    }
+  },
+  {
+    "id": "UE7C8T",
+    "createdAt": 1792417604029,
+    "participants": {
+      "host": {
+        "socketId": null,
+        "sessionToken": "fbcbfc4bdddb5f264081272b3740caf1",
+        "reloginKey": "HOST-NJPS",
+        "name": "fdfwdw",
+        "online": false,
+        "lastSeen": 1792418015338
+      },
+      "guest": null
+    },
+    "messages": [
+      {
+        "id": "b78c3ce7-0a70-4d5c-9687-9ae09c95df57",
+        "senderSlot": "host",
+        "senderName": "fdfwdw",
+        "text": "dmekdme",
+        "timestamp": 1792417618452,
+        "replyToId": null,
+        "reactions": {},
+        "status": "sent"
+      },
+      {
+        "id": "e59393e0-32ac-4b7d-85d4-83d36a68aec3",
+        "senderSlot": "host",
+        "senderName": "fdfwdw",
+        "text": "sdk ek",
+        "timestamp": 1792417622119,
+        "replyToId": null,
+        "reactions": {},
+        "status": "sent"
+      }
+    ],
+    "typing": {
+      "host": false,
+      "guest": false
+    }
+  },
+  {
+    "id": "N6ZSSZ",
+    "createdAt": 1792417754064,
+    "participants": {
+      "host": {
+        "socketId": null,
+        "sessionToken": "fe2c6ad72fc18b698079c30c04b0c439",
+        "reloginKey": "HOST-8B4W",
+        "name": "Alice",
+        "online": false,
+        "lastSeen": 1792417754084
+      },
+      "guest": {
+        "socketId": null,
+        "sessionToken": "1f63dec4da4b931f9af360135ea5c944",
+        "reloginKey": "GUEST-AMN3",
+        "name": "Bob",
+        "online": false,
+        "lastSeen": 1792417754084
+      }
+    },
+    "messages": [
+      {
+        "id": "af1fbb5f-ffef-416b-b006-294c9d3d6ae9",
+        "senderSlot": "host",
+        "senderName": "Alice",
+        "text": "Hey Bob, welcome to our private room!",
+        "timestamp": 1792417754074,
+        "replyToId": null,
+        "reactions": {},
+        "status": "sent"
+      },
+      {
+        "id": "5977c120-2711-421f-add2-0a6976318427",
+        "senderSlot": "guest",
+        "senderName": "Bob",
+        "text": "I'm back online, Alice!",
+        "timestamp": 1792417754084,
+        "replyToId": null,
+        "reactions": {},
+        "status": "sent"
+      }
+    ],
+    "typing": {
+      "host": false,
+      "guest": false
+    }
+  },
+  {
+    "id": "7NQQKK",
+    "createdAt": 1792417794591,
+    "participants": {
+      "host": {
+        "socketId": null,
+        "sessionToken": "8c416f70f382ac3199db9a113958a4c7",
+        "reloginKey": "HOST-4ZMH",
+        "name": "Alice",
+        "online": false,
+        "lastSeen": 1792417794611
+      },
+      "guest": {
+        "socketId": null,
+        "sessionToken": "3756d1b91915edd1eb22f09861366ce2",
+        "reloginKey": "GUEST-TXDK",
+        "name": "Bob",
+        "online": false,
+        "lastSeen": 1792417794611
+      }
+    },
+    "messages": [
+      {
+        "id": "869ffa34-8ac7-49f7-b117-10cb9439806b",
+        "senderSlot": "host",
+        "senderName": "Alice",
+        "text": "Hey Bob, welcome to our private room!",
+        "timestamp": 1792417794602,
+        "replyToId": null,
+        "reactions": {},
+        "status": "sent"
+      },
+      {
+        "id": "c7da4f70-043b-4699-bb6b-2815af3b3fef",
+        "senderSlot": "guest",
+        "senderName": "Bob",
+        "text": "I'm back online, Alice!",
+        "timestamp": 1792417794611,
+        "replyToId": null,
+        "reactions": {},
+        "status": "sent"
+      }
+    ],
+    "typing": {
+      "host": false,
+      "guest": false
+    }
+  },
+  {
+    "id": "4B79NR",
+    "createdAt": 1792417994543,
+    "participants": {
+      "host": {
+        "socketId": null,
+        "sessionToken": "04d6786e7a63c05ee6faa47e4cadf020",
+        "reloginKey": "HOST-YPSM",
+        "name": "ss",
+        "online": true,
+        "lastSeen": 1792418032907
+      },
+      "guest": {
+        "socketId": null,
+        "sessionToken": "10c46ecd3ab25807f66fdc3063d898d9",
+        "reloginKey": "GUEST-FDF5",
+        "name": "ede",
+        "online": true,
+        "lastSeen": 1792418257090
+      }
+    },
+    "messages": [
+      {
+        "id": "337effc7-3d6a-417a-a6eb-28f7d0cb3237",
+        "senderSlot": "guest",
+        "senderName": "ede",
+        "text": "hi baby",
+        "timestamp": 1792418090486,
+        "replyToId": null,
+        "reactions": {},
+        "status": "read"
+      },
+      {
+        "id": "c54b192e-f52d-4d29-86fd-874b65acb098",
+        "senderSlot": "host",
+        "senderName": "ss",
+        "text": "hi bay",
+        "timestamp": 1792418097117,
+        "replyToId": null,
+        "reactions": {},
+        "status": "read"
+      },
+      {
+        "id": "eacba1d8-29af-4674-95d2-e75eeb360c6f",
+        "senderSlot": "host",
+        "senderName": "ss",
+        "text": "how are you baby",
+        "timestamp": 1792418107169,
+        "replyToId": null,
+        "reactions": {},
+        "status": "read"
+      },
+      {
+        "id": "22d47ec9-16a4-418b-8740-c6529731d406",
+        "senderSlot": "guest",
+        "senderName": "ede",
+        "text": "nd",
+        "timestamp": 1792418202967,
+        "replyToId": null,
+        "reactions": {},
+        "status": "read"
+      },
+      {
+        "id": "6a8734d9-f4a8-44ec-be91-74e8c3d255cb",
+        "senderSlot": "guest",
+        "senderName": "ede",
+        "text": "ksd",
+        "timestamp": 1792418205708,
+        "replyToId": null,
+        "reactions": {},
+        "status": "read"
+      },
+      {
+        "id": "9b1d66b0-e897-4c6e-b283-b65673081fc1",
+        "senderSlot": "guest",
+        "senderName": "ede",
+        "text": "bolo bant",
+        "timestamp": 1792418212494,
+        "replyToId": null,
+        "reactions": {},
+        "status": "read"
+      }
+    ],
+    "typing": {
+      "host": false,
+      "guest": false
+    }
+  }
+]
